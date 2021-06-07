@@ -1,6 +1,6 @@
-/*
+    /*
   IMU Classifier
-
+  
   This example uses the on-board IMU to start reading acceleration and gyroscope
   data from on-board IMU, once enough samples are read, it then uses a
   TensorFlow Lite (Micro) model to try to classify the movement as a known gesture.
@@ -19,6 +19,7 @@
 */
 
 #include <Arduino_LSM9DS1.h>
+#include <Servo.h>
 
 #include <TensorFlowLite.h>
 #include <tensorflow/lite/micro/all_ops_resolver.h>
@@ -58,11 +59,17 @@ const char* GESTURES[] = {
   "flex"
 };
 
+
+  Servo myservo;  // create servo object to control a servo
+  int newPosition = 0;    // variable to store the new servo position
+  int oldPosition = 0; // the previous position of the servo 
+
 #define NUM_GESTURES (sizeof(GESTURES) / sizeof(GESTURES[0]))
 
 void setup() {
   Serial.begin(9600);
   while (!Serial);
+  myservo.attach(9);  // attaches the servo on pin 9 to the servo object
 
   // initialize the IMU
   if (!IMU.begin()) {
@@ -96,11 +103,13 @@ void setup() {
   // Get pointers for the model's input and output tensors
   tflInputTensor = tflInterpreter->input(0);
   tflOutputTensor = tflInterpreter->output(0);
+
+  
 }
 
 void loop() {
   float aX, aY, aZ, gX, gY, gZ;
-
+  
   // wait for significant motion
   while (samplesRead == numSamples) {
     if (IMU.accelerationAvailable()) {
@@ -152,7 +161,25 @@ void loop() {
         for (int i = 0; i < NUM_GESTURES; i++) {
           Serial.print(GESTURES[i]);
           Serial.print(": ");
+          float value = tflOutputTensor->data.f[i]; // 0.00 - 1.00
+          Serial.print(value);
+          Serial.print(" ------  ");
           Serial.println(tflOutputTensor->data.f[i], 6);
+          if( i == 0 ) 
+          {
+            newPosition = value * 180;
+            if( newPosition > oldPosition + 5 || newPosition < oldPosition -5 ) // only move if it's a big enough change
+            {
+              Serial.print("moving from position ");
+              Serial.print( oldPosition );
+              Serial.print(" to position ");
+              Serial.println( newPosition );
+
+              myservo.write(newPosition);              // tell servo to go to position in variable 'pos'
+              oldPosition = newPosition;
+
+            }
+          }
         }
         Serial.println();
       }
